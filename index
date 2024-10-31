@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>小猪冒险游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #fff0f5;
+            font-family: Arial, sans-serif;
+            touch-action: none;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: auto;
+            background: #87CEEB;
+            border: 2px solid #ff69b4;
+            display: block;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 500px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .stats div {
+            font-size: 16px;
+            color: #ff69b4;
+        }
+
+        #startBtn {
+            padding: 10px 20px;
+            font-size: 18px;
+            background: #ff69b4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            touch-action: manipulation;
+        }
+
+        #startBtn:hover {
+            background: #ff1493;
+        }
+
+        #controls {
+            display: none;
+            width: 100%;
+            max-width: 500px;
+            position: relative;
+            height: 50px;
+            margin-top: 10px;
+        }
+
+        .control-btn {
+            position: absolute;
+            width: 60px;
+            height: 50px;
+            background: rgba(255, 105, 180, 0.7);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 24px;
+            touch-action: manipulation;
+        }
+
+        #leftBtn {
+            left: 20px;
+        }
+
+        #rightBtn {
+            right: 20px;
+        }
+
+        @media (max-width: 768px) {
+            #controls {
+                display: block;
+            }
+            
+            .stats {
+                font-size: 14px;
+            }
+        }
+
+        #instructions {
+            margin: 10px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="stats">
+        <div id="score">分数: 0</div>
+        <div id="level">等级: 1</div>
+        <div id="health">生命值: ❤️❤️❤️</div>
+    </div>
+    
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="500" height="700"></canvas>
+    </div>
+    
+    <button id="startBtn">开始游戏</button>
+    
+    <div id="controls">
+        <button id="leftBtn" class="control-btn">←</button>
+        <button id="rightBtn" class="control-btn">→</button>
+    </div>
+
+    <div id="instructions">
+        电脑：使用键盘方向键或鼠标移动<br>
+        手机：点击屏幕两侧按钮或滑动控制
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const levelElement = document.getElementById('level');
+        const healthElement = document.getElementById('health');
+        const startBtn = document.getElementById('startBtn');
+        const leftBtn = document.getElementById('leftBtn');
+        const rightBtn = document.getElementById('rightBtn');
+
+        // 调整画布大小以适应屏幕
+        function resizeCanvas() {
+            const container = document.getElementById('gameContainer');
+            const containerWidth = container.clientWidth;
+            canvas.style.width = containerWidth + 'px';
+            canvas.style.height = (containerWidth * 1.4) + 'px';
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        let score = 0;
+        let level = 1;
+        let health = 3;
+        let gameOver = true;
+        let pigX = canvas.width / 2;
+        let obstacles = [];
+        let hearts = [];
+        let animationId;
+        let obstacleSpeed = 2;
+        let obstacleFrequency = 0.02;
+        let moveSpeed = 5;
+        let isMovingLeft = false;
+        let isMovingRight = false;
+
+        class Obstacle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = canvas.width * 0.08;
+                this.height = canvas.width * 0.08;
+            }
+
+            draw() {
+                ctx.fillStyle = '#8B4513';
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + this.width, this.y);
+                ctx.lineTo(this.x + this.width/2, this.y + this.height);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        class Heart {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = canvas.width * 0.06;
+                this.height = canvas.width * 0.06;
+            }
+
+            draw() {
+                ctx.fillStyle = '#FF0000';
+                ctx.font = `${this.width}px Arial`;
+                ctx.fillText('❤️', this.x, this.y);
+            }
+        }
+
+        function drawPig() {
+            const scale = canvas.width * 0.05;
+            
+            // 身体
+            ctx.fillStyle = '#FFC0CB';
+            ctx.beginPath();
+            ctx.ellipse(pigX, canvas.height - scale * 2, scale * 1.25, scale, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 头
+            ctx.beginPath();
+            ctx.ellipse(pigX, canvas.height - scale * 3, scale * 0.75, scale * 0.75, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 耳朵
+            ctx.beginPath();
+            ctx.ellipse(pigX - scale * 0.5, canvas.height - scale * 3.5, scale * 0.4, scale * 0.25, Math.PI/4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(pigX + scale * 0.5, canvas.height - scale * 3.5, scale * 0.4, scale * 0.25, -Math.PI/4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 鼻子
+            ctx.fillStyle = '#FF69B4';
+            ctx.beginPath();
+            ctx.ellipse(pigX, canvas.height - scale * 3, scale * 0.25, scale * 0.15, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 眼睛
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(pigX - scale * 0.25, canvas.height - scale * 3.15, scale * 0.1, 0, Math.PI * 2);
+            ctx.arc(pigX + scale * 0.25, canvas.height - scale * 3.15, scale * 0.1, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function updateLevel() {
+            if (score > 0 && score % 10 === 0) {
+                level = Math.floor(score / 10) + 1;
+                obstacleSpeed = 2 + level * 0.5;
+                obstacleFrequency = 0.02 + level * 0.005;
+                levelElement.textContent = `等级: ${level}`;
+            }
+        }
+
+        function updateHealth() {
+            healthElement.textContent = `生命值: ${'❤️'.repeat(health)}`;
+        }
+
+        function movePig() {
+            if (isMovingLeft) {
+                pigX = Math.max(canvas.width * 0.05, pigX - moveSpeed);
+            }
+            if (isMovingRight) {
+                pigX = Math.min(canvas.width - canvas.width * 0.05, pigX + moveSpeed);
+            }
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            movePig();
+
+            if (Math.random() < obstacleFrequency) {
+                const x = Math.random() * (canvas.width - canvas.width * 0.08);
+                obstacles.push(new Obstacle(x, -canvas.width * 0.08));
+            }
+
+            if (Math.random() < 0.005) {
+                const x = Math.random() * (canvas.width - canvas.width * 0.06);
+                hearts.push(new Heart(x, -canvas.width * 0.06));
+            }
+
+            obstacles.forEach((obstacle, index) => {
+                obstacle.y += obstacleSpeed;
+                obstacle.draw();
+
+                if (obstacle.y > canvas.height) {
+                    obstacles.splice(index, 1);
+                    score++;
+                    scoreElement.textContent = `分数: ${score}`;
+                    updateLevel();
+                }
+
+                if (
+                    Math.abs(pigX - (obstacle.x + obstacle.width/2)) < canvas.width * 0.05 &&
+                    Math.abs(canvas.height - canvas.width * 0.1 - (obstacle.y + obstacle.height/2)) < canvas.width * 0.05
+                ) {
+                    health--;
+                    updateHealth();
+                    obstacles.splice(index, 1);
+                    if (health <= 0) {
+                        endGame();
+                    }
+                }
+            });
+
+            hearts.forEach((heart, index) => {
+                heart.y += obstacleSpeed * 0.75;
+                heart.draw();
+
+                if (heart.y > canvas.height) {
+                    hearts.splice(index, 1);
+                }
+
+                if (
+                    Math.abs(pigX - (heart.x + heart.width/2)) < canvas.width * 0.05 &&
+                    Math.abs(canvas.height - canvas.width * 0.1 - (heart.y + heart.height/2)) < canvas.width * 0.05
+                ) {
+                    if (health < 3) {
+                        health++;
+                        updateHealth();
+                    }
+                    hearts.splice(index, 1);
+                }
+            });
+
+            drawPig();
+
+            if (!gameOver) {
+                animationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function startGame() {
+            if (!gameOver) return;
+            gameOver = false;
+            score = 0;
+            level = 1;
+            health = 3;
+            obstacles = [];
+            hearts = [];
+            obstacleSpeed = 2;
+            obstacleFrequency = 0.02;
+            pigX = canvas.width / 2;
+            scoreElement.textContent = `分数: ${score}`;
+            levelElement.textContent = `等级: ${level}`;
+            updateHealth();
+            gameLoop();
+            startBtn.textContent = '重新开始';
+        }
+
+        function endGame() {
+            gameOver = true;
+            cancelAnimationFrame(animationId);
+            alert(`游戏结束！\n最终得分：${score}\n达到等级：${level}`);
+        }
+
+        // 键盘控制
+        document.addEventListener('keydown', (e) => {
+            if (gameOver) return;
+            if (e.key === 'ArrowLeft') isMovingLeft = true;
+            if (e.key === 'ArrowRight') isMovingRight = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft') isMovingLeft = false;
+            if (e.key === 'ArrowRight') isMovingRight = false;
+        });
+
+        // 鼠标控制
+        canvas.addEventListener('mousemove', (e) => {
+            if (gameOver) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const mouseX = (e.clientX - rect.left) * scaleX;
+            pigX = Math.max(canvas.width * 0.05, Math.min(canvas.width - canvas.width * 0.05, mouseX));
+        });
+
+        // 触摸控制
+        canvas.addEventListener('touchmove', (e) => {
+            if (gameOver) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const touch = e.touches[0];
+            const mouseX = (touch.clientX - rect.left) * scaleX;
+            pigX = Math.max(canvas.width * 0.05, Math.min(canvas.width - canvas.width * 0.05, mouseX));
+        }, { passive: false });
+
+        // 虚拟按钮控制
+        leftBtn.addEventListener('touchstart', () => isMovingLeft = true);
+        leftBtn.addEventListener('touchend', () => isMovingLeft = false);
+        rightBtn.addEventListener('touchstart', () => isMovingRight = true);
+        rightBtn.addEventListener('touchend', () => isMovingRight = false);
+        leftBtn.addEventListener('mousedown', () => isMovingLeft = true);
+        leftBtn.addEventListener('mouseup', () => isMovingLeft = false);
+        rightBtn.addEventListener('mousedown', () => isMovingRight = true);
+        rightBtn.addEventListener('mouseup', () => isMovingRight = false);
+
+        startBtn.addEventListener('click', startGame);
+    </script>
+</body>
+</html>
